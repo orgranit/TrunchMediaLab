@@ -18,7 +18,8 @@
         </activity>
         <activity android:name=".TrunchActivity"/>
 
-        <receiver android:name=".CheckForTrunchService"></receiver>
+        <receiver android:name=".TrunchCheckerService"></receiver>
+        <receiver android:name=".TrunchReminderService"></receiver>
     </application>
 
 

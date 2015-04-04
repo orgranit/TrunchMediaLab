@@ -17,7 +17,6 @@ import android.view.Window;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.GridView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -29,6 +28,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
 
@@ -37,7 +37,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //				Constants
     //=========================================
 
-    private static final long MIN_TIME_BETWEEN_JSON_DOWNLOAD = 1000 * 60 * 60 * 24; //one day
+    private static final long TWENTY_FOUR_HOURS = 1000 * 60 * 60 * 24; //one day
     private static final String SHARED_PREF_KEY_LAST_TIME_DOWNLOADED = "com.package.SHARED_PREF_KEY_LAST_TIME_DOWNLOADED";
     private static final String SHARED_PREF_KEY_FOOD_TAGS = "com.package.SHARED_PREF_KEY_FOOD_TAGS";
     private static final String SHARED_PREF_KEY_RESTAURANT = "com.package.SHARED_PREF_KEY_RESTAURANT";
@@ -63,8 +63,10 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     ArrayAdapter<Restaurant> restAdapter;
     ObjectMapper mMapper;
     InputMethodManager mInputManger;
-    PendingIntent mPendingIntent;
-    AlarmManager mAlarmManager;
+    PendingIntent mPendingCheckerIntent;
+    AlarmManager mTrunchCheckerAlarm;
+    AlarmManager mTrunchReminderAlarm;
+    PendingIntent mPendingReminderIntent;
     //=========================================
     //				Activity Lifecycle
     //=========================================
@@ -84,6 +86,8 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         mMapper = new ObjectMapper();
         mInputManger = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
+        // set daily reminder
+        setReminderAlarm();
 
         // check the user is logged in
         if (mSharedPreferences.getLong(SHARED_PREF_USER_ID, -1) < 0) {
@@ -95,7 +99,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         // check difference between current time and last time of download. Compare to MIN_TIME_BETWEEN_JSON_DOWNLOAD and act accordingly.
         long lastTimeDownloaded = mSharedPreferences.getLong(SHARED_PREF_KEY_LAST_TIME_DOWNLOADED, -1);
         long timeDifference = System.currentTimeMillis() - lastTimeDownloaded;
-        if (timeDifference > MIN_TIME_BETWEEN_JSON_DOWNLOAD) {
+        if (timeDifference > TWENTY_FOUR_HOURS) {
             // show the splash screen
             mSplashScreenView.setVisibility(View.VISIBLE);
             // go get JSON from server
@@ -355,16 +359,16 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
 
 
     private void waitForTrunch(String restName, View view) {
-        Intent alarmIntent = new Intent(this, CheckForTrunchService.class);
+        Intent alarmIntent = new Intent(this, TrunchCheckerService.class);
         alarmIntent.putExtra("restName", restName);
         showGreatChoice(restName);
-        mPendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-        startAlarm(view);
+        mPendingCheckerIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_CANCEL_CURRENT);
+        startCheckerAlarm(view);
     }
 
     public static PendingIntent getSyncPendingIntent(Context context)
     {
-        Intent i = new Intent(context, CheckForTrunchService.class);
+        Intent i = new Intent(context, TrunchCheckerService.class);
         PendingIntent pi = PendingIntent.getBroadcast(context, 0, i, PendingIntent.FLAG_CANCEL_CURRENT);
         return pi;
     }
@@ -372,7 +376,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     private void showGreatChoice(String restName) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Great Choice!");
-        builder.setMessage("We'll let you know when you have a Trunch" );
+        builder.setMessage("We'll let you know when you have a Trunch");
         builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
@@ -383,16 +387,16 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         dialog.show();
     }
 
-    public void startAlarm(View view) {
+    public void startCheckerAlarm(View view) {
         cancelAlarm(view);
         clearSharePref();
-        mAlarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        mAlarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), REPEAT_TIME, mPendingIntent);
+        mTrunchCheckerAlarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        mTrunchCheckerAlarm.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), REPEAT_TIME, mPendingCheckerIntent);
     }
 
     public void cancelAlarm(View view) {
-        if (mAlarmManager != null) {
-            mAlarmManager.cancel(mPendingIntent);
+        if (mTrunchCheckerAlarm != null) {
+            mTrunchCheckerAlarm.cancel(mPendingCheckerIntent);
         }
     }
 
@@ -401,6 +405,20 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         SharedPreferences.Editor edit = mSharedPreferences.edit();
         edit.putBoolean(SHARED_PREF_HAS_TRUNCH, false);
         edit.commit();
+    }
+
+
+    public void setReminderAlarm(){
+        mTrunchReminderAlarm = (AlarmManager) getSystemService(ALARM_SERVICE);
+        Intent alarmIntent = new Intent(this, TrunchReminderService.class);
+        mPendingReminderIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
+
+        Calendar alarmStartTime = Calendar.getInstance();
+        alarmStartTime.setTimeInMillis(System.currentTimeMillis());
+        alarmStartTime.set(Calendar.HOUR_OF_DAY, 11);
+        //alarmStartTime.set(Calendar.MINUTE, 30);
+        mTrunchReminderAlarm.setRepeating(AlarmManager.RTC_WAKEUP, alarmStartTime.getTimeInMillis(),
+                TWENTY_FOUR_HOURS, mPendingReminderIntent);
     }
 
     private class downloadJsonAsync extends AsyncTask<String, Void, String[]> {

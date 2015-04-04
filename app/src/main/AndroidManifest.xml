@@ -16,8 +16,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".WaitForTrunchActivity"/>
+        <activity android:name=".TrunchActivity"/>
+
+        <receiver android:name=".CheckForTrunchService"></receiver>
     </application>
+
+
 
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

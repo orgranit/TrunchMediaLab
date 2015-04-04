@@ -1,17 +1,16 @@
 package com.example.trunch;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
-import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -22,7 +21,6 @@ import android.widget.GridView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 
 import com.tokenautocomplete.FilteredArrayAdapter;
 import com.tokenautocomplete.TokenCompleteTextView;
@@ -47,6 +45,8 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     private static final String SHARED_PREF_NAME = "com.package.SHARED_PREF_NAME";
     private static final String urlGetTags = "http://www.mocky.io/v2/54ba8366e7c226ad0b446eff";
     private static final String urlGetRest = "http://www.mocky.io/v2/54ba8335e7c226a90b446efe";
+    private static final long REPEAT_TIME = 1000 * 5;
+    private static final String SHARED_PREF_HAS_TRUNCH = "com.package.SHARED_PREF_HAS_TRUNCH";
 
     //=========================================
     //				Fields
@@ -57,13 +57,14 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     TextView mTitleView;
     LinearLayout mMainContainer;
     HorizontialListView mRestContainer;
-    GridView tagsGrid;
     FoodTag[] foodTags;
     Restaurant[] restTotal;
     ArrayList<Restaurant> restAdapterList;
     ArrayAdapter<Restaurant> restAdapter;
     ObjectMapper mMapper;
     InputMethodManager mInputManger;
+    PendingIntent mPendingIntent;
+    AlarmManager mAlarmManager;
     //=========================================
     //				Activity Lifecycle
     //=========================================
@@ -80,7 +81,6 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         mTitleView = (TextView) findViewById(R.id.titleView);
         mMainContainer = (LinearLayout) findViewById(R.id.mainContainer);
         mRestContainer = (HorizontialListView) findViewById(R.id.restContainer);
-        //tagsGrid = (GridView) findViewById(R.id.tagsGrid);
         mMapper = new ObjectMapper();
         mInputManger = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
@@ -191,10 +191,11 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         mRestContainer.setAdapter(restAdapter);
         mRestContainer.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(final AdapterView<?> parent, View view, int position, long id) {
+            public void onItemClick(final AdapterView<?> parent, final View view, int position, long id) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
-                TextView restName = (TextView) view.findViewById(R.id.restName);
-                builder.setTitle(restName.getText());
+                TextView restTitle = (TextView) view.findViewById(R.id.restName);
+                final String restName = (String) restTitle.getText();
+                builder.setTitle(restTitle.getText());
                 builder.setMessage("Are you sure you want to Trunch here?");
                 builder.setNegativeButton("No", new DialogInterface.OnClickListener() {
                     @Override
@@ -205,7 +206,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
                 builder.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        waitForTrunch();
+                        waitForTrunch(restName, view);
                     }
                 });
                 AlertDialog dialog = builder.create();
@@ -353,9 +354,53 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     }
 
 
-    private void waitForTrunch() {
-        Intent intent = new Intent(this, WaitForTrunchActivity.class);
-        startActivity(intent);
+    private void waitForTrunch(String restName, View view) {
+        Intent alarmIntent = new Intent(this, CheckForTrunchService.class);
+        alarmIntent.putExtra("restName", restName);
+        showGreatChoice(restName);
+        mPendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_CANCEL_CURRENT);
+        startAlarm(view);
+    }
+
+    public static PendingIntent getSyncPendingIntent(Context context)
+    {
+        Intent i = new Intent(context, CheckForTrunchService.class);
+        PendingIntent pi = PendingIntent.getBroadcast(context, 0, i, PendingIntent.FLAG_CANCEL_CURRENT);
+        return pi;
+    }
+
+    private void showGreatChoice(String restName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Great Choice!");
+        builder.setMessage("We'll let you know when you have a Trunch" );
+        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    public void startAlarm(View view) {
+        cancelAlarm(view);
+        clearSharePref();
+        mAlarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        mAlarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), REPEAT_TIME, mPendingIntent);
+    }
+
+    public void cancelAlarm(View view) {
+        if (mAlarmManager != null) {
+            mAlarmManager.cancel(mPendingIntent);
+        }
+    }
+
+    private void clearSharePref() {
+        mSharedPreferences = getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor edit = mSharedPreferences.edit();
+        edit.putBoolean(SHARED_PREF_HAS_TRUNCH, false);
+        edit.commit();
     }
 
     private class downloadJsonAsync extends AsyncTask<String, Void, String[]> {

@@ -37,7 +37,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //				Constants
     //=========================================
 
-    private static final long TWENTY_FOUR_HOURS = 1000 * 60 * 60 * 24; //one day
+    private static final long MIN_TIME_BETWEEN_JSON_DOWNLOAD = 1000 * 60 * 60 * 24; //one day
     private static final String SHARED_PREF_NAME = "com.package.SHARED_PREF_NAME";
     private static final String urlGetTags = "http://www.mocky.io/v2/54ba8366e7c226ad0b446eff";
     private static final String urlGetRest = "http://www.mocky.io/v2/54ba8335e7c226a90b446efe";
@@ -90,7 +90,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         long lastTimeDownloaded = SharedPrefUtils.lastTimeDownloaded(mSharedPreferences);
         long timeDifference = System.currentTimeMillis() - lastTimeDownloaded;
         // Compare to MIN_TIME_BETWEEN_JSON_DOWNLOAD and act accordingly.
-        if (timeDifference > TWENTY_FOUR_HOURS) {
+        if (timeDifference > MIN_TIME_BETWEEN_JSON_DOWNLOAD) {
             // show the splash screen
             mSplashScreenView.setVisibility(View.VISIBLE);
             // go get JSON from server

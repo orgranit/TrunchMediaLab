@@ -57,7 +57,7 @@ public class AlarmsUtils {
         Calendar alarmStartTime = Calendar.getInstance();
         alarmStartTime.setTimeInMillis(System.currentTimeMillis());
         alarmStartTime.set(Calendar.HOUR_OF_DAY, 11);
-        //alarmStartTime.set(Calendar.MINUTE, 30);
+        alarmStartTime.set(Calendar.MINUTE, 00);
         mTrunchReminderAlarm.setRepeating(AlarmManager.RTC_WAKEUP, alarmStartTime.getTimeInMillis(),
                 TWENTY_FOUR_HOURS, mPendingReminderIntent);
     }

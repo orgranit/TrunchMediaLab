@@ -16,10 +16,7 @@ public class TrunchActivity extends Activity {
     //=========================================
     //				Constants
     //=========================================
-    private static final long REPEAT_TIME = 1000 * 5;
-    private static final String SHARED_PREF_NAME = "com.package.SHARED_PREF_NAME";
-    private static final String SHARED_PREF_HAS_TRUNCH = "com.package.SHARED_PREF_HAS_TRUNCH";
-    private static final String SHARED_PREF_TRUNCHERS = "com.package.SHARED_PREF_TRUNCHERS";
+
 
 
     //=========================================

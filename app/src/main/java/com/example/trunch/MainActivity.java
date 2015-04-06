@@ -28,7 +28,6 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 
 
@@ -38,15 +37,9 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //=========================================
 
     private static final long TWENTY_FOUR_HOURS = 1000 * 60 * 60 * 24; //one day
-    private static final String SHARED_PREF_KEY_LAST_TIME_DOWNLOADED = "com.package.SHARED_PREF_KEY_LAST_TIME_DOWNLOADED";
-    private static final String SHARED_PREF_KEY_FOOD_TAGS = "com.package.SHARED_PREF_KEY_FOOD_TAGS";
-    private static final String SHARED_PREF_KEY_RESTAURANT = "com.package.SHARED_PREF_KEY_RESTAURANT";
-    private static final String SHARED_PREF_USER_ID = "com.package.SHARED_PREF_USER_ID";
     private static final String SHARED_PREF_NAME = "com.package.SHARED_PREF_NAME";
     private static final String urlGetTags = "http://www.mocky.io/v2/54ba8366e7c226ad0b446eff";
     private static final String urlGetRest = "http://www.mocky.io/v2/54ba8335e7c226a90b446efe";
-    private static final long REPEAT_TIME = 1000 * 5;
-    private static final String SHARED_PREF_HAS_TRUNCH = "com.package.SHARED_PREF_HAS_TRUNCH";
 
     //=========================================
     //				Fields
@@ -91,14 +84,14 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         AlarmsUtils.setReminderAlarm(this, mTrunchReminderAlarm, mPendingReminderIntent);
 
         // check the user is logged in
-        if (mSharedPreferences.getLong(SHARED_PREF_USER_ID, -1) < 0) {
+        if (!SharedPrefUtils.isLoggedIn(mSharedPreferences)) {
             mSplashScreenView.setVisibility(View.VISIBLE);
             // start linkdin activity
 
         }
 
         // check difference between current time and last time of download. Compare to MIN_TIME_BETWEEN_JSON_DOWNLOAD and act accordingly.
-        long lastTimeDownloaded = mSharedPreferences.getLong(SHARED_PREF_KEY_LAST_TIME_DOWNLOADED, -1);
+        long lastTimeDownloaded = SharedPrefUtils.lastTimeDownloaded(mSharedPreferences);
         long timeDifference = System.currentTimeMillis() - lastTimeDownloaded;
         if (timeDifference > TWENTY_FOUR_HOURS) {
             // show the splash screen
@@ -233,8 +226,8 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     }
 
     private void getJSONFromSharedPref() {
-        String jsonRest = mSharedPreferences.getString(SHARED_PREF_KEY_RESTAURANT, "{'empty' : empty}");
-        String jsonTags = mSharedPreferences.getString(SHARED_PREF_KEY_FOOD_TAGS, "{'empty' : empty}");
+        String jsonRest = SharedPrefUtils.getRests(mSharedPreferences);
+        String jsonTags = SharedPrefUtils.getFoodTags(mSharedPreferences);
         parseJsonRest(jsonRest);
         parseJsonTags(jsonTags);
 
@@ -343,11 +336,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
             String jsonRest = json[1];
             if ((jsonTags != null) && (jsonRest != null)) {
                 // save json to sharePrefs
-                SharedPreferences.Editor edit = mSharedPreferences.edit();
-                edit.putString(SHARED_PREF_KEY_FOOD_TAGS, jsonTags);
-                edit.putString(SHARED_PREF_KEY_RESTAURANT, jsonRest);
-                edit.putLong(SHARED_PREF_KEY_LAST_TIME_DOWNLOADED, System.currentTimeMillis());
-                edit.commit();
+                SharedPrefUtils.saveRestData(mSharedPreferences, jsonTags, jsonRest);
                 // parse json
                 parseJsonRest(jsonRest);
                 parseJsonTags(jsonTags);

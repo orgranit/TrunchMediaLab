@@ -61,6 +61,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     Restaurant[] restTotal;
     ArrayList<Restaurant> restAdapterList;
     ArrayAdapter<Restaurant> restAdapter;
+    ArrayAdapter<FoodTag> foodTagAdapter;
     ObjectMapper mMapper;
     InputMethodManager mInputManger;
     PendingIntent mPendingCheckerIntent;
@@ -87,7 +88,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         mInputManger = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
         // set daily reminder
-        setReminderAlarm();
+        AlarmsUtils.setReminderAlarm(this, mTrunchReminderAlarm, mPendingReminderIntent);
 
         // check the user is logged in
         if (mSharedPreferences.getLong(SHARED_PREF_USER_ID, -1) < 0) {
@@ -115,41 +116,6 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //				Private Methods
     //=========================================
 
-    private void refreshRest(List<Object> tokens) {
-        for (int i =0; i < restTotal.length; i++){
-            Restaurant rest = restTotal[i];
-            if (containTags(rest,tokens)){
-                if (!restAdapterList.contains(rest)) {
-                    restAdapterList.add(rest);
-                }
-            } else {
-                restAdapterList.remove(rest);
-            }
-        }
-        restAdapter.notifyDataSetChanged();
-
-    }
-
-
-
-    private boolean containTags(Restaurant rest, List<Object> tokens) {
-        if(tokens.size() == 0){
-            return false;
-        }
-        int matches = 0;
-        String[] tags = rest.getTags();
-        for (Object token : tokens) {
-            FoodTag foodTag = (FoodTag) token;
-            for(String tag : tags) {
-                if (tag.toLowerCase().equals(foodTag.getTag().toLowerCase())){
-                    matches++;
-                }
-            }
-        }
-        return (matches == tokens.size());
-    }
-
-
     private void parseJsonRest(String jsonRest) {
         try {
             restTotal = mMapper.readValue(jsonRest,Restaurant[].class);
@@ -161,9 +127,6 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     }
 
 
-
-
-
     private void parseJsonTags(String json) {
         try {
             foodTags = mMapper.readValue(json,FoodTag[].class);
@@ -171,6 +134,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
             mSplashScreenView.setVisibility(View.GONE);
             // make tokenSearch view
             initTokenView();
+            adjustTokenView();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -221,7 +185,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     }
 
     private void initTokenView() {
-        ArrayAdapter<FoodTag> adapter = new FilteredArrayAdapter<FoodTag>(this, R.layout.food_tag_layout, foodTags) {
+        foodTagAdapter = new FilteredArrayAdapter<FoodTag>(this, R.layout.food_tag_layout, foodTags) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 if (convertView == null) {
@@ -245,7 +209,11 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
             }
         };
 
-        mCompletionView.setAdapter(adapter);
+
+    }
+
+    private void adjustTokenView() {
+        mCompletionView.setAdapter(foodTagAdapter);
         mCompletionView.setTokenListener(this);
         mCompletionView.setTokenClickStyle(TokenCompleteTextView.TokenClickStyle.Delete);
         mCompletionView.allowDuplicates(false);
@@ -299,41 +267,15 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
 
     @Override
     public void onTokenAdded(Object token) {
-        //completionView.setCursorVisible(false);
-        //imm.hideSoftInputFromWindow(completionView.getWindowToken(), 0);
         if (((FoodTag) token).isRest()) {
-            restTokenAdded(token);
+            TokenViewUtils.restTokenAdded(token, mCompletionView, mInputManger);
         } else {
-            foodTokenAdded(token);
+            TokenViewUtils.foodTokenAdded(token, mCompletionView, mInputManger);
         }
         List<Object> tokens = mCompletionView.getObjects();
-        refreshRest(tokens);
+        TokenViewUtils.refreshRest(tokens, restTotal,
+                restAdapterList, restAdapter);
     }
-
-    private void foodTokenAdded(Object token) {
-        List<Object> objects = mCompletionView.getObjects();
-        mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
-        mCompletionView.setCursorVisible(false);
-        // remove rest
-        FoodTag rest = (FoodTag) objects.get(0);
-        if (rest.isRest()) {
-            mCompletionView.removeObject(rest);
-        }
-    }
-
-    private void restTokenAdded(Object token) {
-        mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
-        mCompletionView.setCursorVisible(false);
-        List<Object> objects = mCompletionView.getObjects();
-        int tokens = objects.size() - 1;
-        // clear all
-        while (tokens > 0) {
-            tokens--;
-            mCompletionView.removeObject(objects.get(tokens));
-        }
-    }
-
-
 
 
     @Override
@@ -344,17 +286,8 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
             mTitleView.setVisibility(View.VISIBLE);
             mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
         }
-        refreshRest(tokens);
-    }
-
-
-
-    //=========================================
-    //				Private Classes
-    //=========================================
-    private void linkedinConnect() {
-        Intent intent = new Intent(this, LinkedinConnectActivity.class);
-        startActivity(intent);
+        TokenViewUtils.refreshRest(tokens, restTotal,
+                restAdapterList, restAdapter);
     }
 
 
@@ -363,14 +296,8 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         alarmIntent.putExtra("restName", restName);
         showGreatChoice(restName);
         mPendingCheckerIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-        startCheckerAlarm(view);
-    }
-
-    public static PendingIntent getSyncPendingIntent(Context context)
-    {
-        Intent i = new Intent(context, TrunchCheckerService.class);
-        PendingIntent pi = PendingIntent.getBroadcast(context, 0, i, PendingIntent.FLAG_CANCEL_CURRENT);
-        return pi;
+        AlarmsUtils.startCheckerAlarm(view, this, mTrunchCheckerAlarm , mPendingCheckerIntent,
+                mSharedPreferences);
     }
 
     private void showGreatChoice(String restName) {
@@ -387,38 +314,18 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         dialog.show();
     }
 
-    public void startCheckerAlarm(View view) {
-        cancelAlarm(view);
-        clearSharePref();
-        mTrunchCheckerAlarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        mTrunchCheckerAlarm.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), REPEAT_TIME, mPendingCheckerIntent);
+    public static PendingIntent getSyncPendingIntent(Context context) {
+        Intent intent = new Intent(context, TrunchCheckerService.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+        return pendingIntent;
     }
 
-    public void cancelAlarm(View view) {
-        if (mTrunchCheckerAlarm != null) {
-            mTrunchCheckerAlarm.cancel(mPendingCheckerIntent);
-        }
-    }
-
-    private void clearSharePref() {
-        mSharedPreferences = getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE);
-        SharedPreferences.Editor edit = mSharedPreferences.edit();
-        edit.putBoolean(SHARED_PREF_HAS_TRUNCH, false);
-        edit.commit();
-    }
-
-
-    public void setReminderAlarm(){
-        mTrunchReminderAlarm = (AlarmManager) getSystemService(ALARM_SERVICE);
-        Intent alarmIntent = new Intent(this, TrunchReminderService.class);
-        mPendingReminderIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
-
-        Calendar alarmStartTime = Calendar.getInstance();
-        alarmStartTime.setTimeInMillis(System.currentTimeMillis());
-        alarmStartTime.set(Calendar.HOUR_OF_DAY, 11);
-        //alarmStartTime.set(Calendar.MINUTE, 30);
-        mTrunchReminderAlarm.setRepeating(AlarmManager.RTC_WAKEUP, alarmStartTime.getTimeInMillis(),
-                TWENTY_FOUR_HOURS, mPendingReminderIntent);
+    //=========================================
+    //				Private Classes
+    //=========================================
+    private void linkedinConnect() {
+        Intent intent = new Intent(this, LinkedinConnectActivity.class);
+        startActivity(intent);
     }
 
     private class downloadJsonAsync extends AsyncTask<String, Void, String[]> {

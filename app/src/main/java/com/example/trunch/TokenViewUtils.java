@@ -56,7 +56,7 @@ public class TokenViewUtils {
         }
     }
 
-    public static  void restTokenAdded(Object token, TagsCompletionView mCompletionView,
+    public static void restTokenAdded(Object token, TagsCompletionView mCompletionView,
                                        InputMethodManager mInputManger) {
         mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
         mCompletionView.setCursorVisible(false);
@@ -67,6 +67,10 @@ public class TokenViewUtils {
             tokens--;
             mCompletionView.removeObject(objects.get(tokens));
         }
+    }
+
+    public static void adjustTokenView(TagsCompletionView mTagsCompletionView) {
+
     }
 
 }

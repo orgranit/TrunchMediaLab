@@ -1,6 +1,7 @@
 package com.example.trunch;
 
 import android.content.SharedPreferences;
+import android.util.Log;
 
 /**
  * Created by or on 4/6/2015.
@@ -55,6 +56,12 @@ public class SharedPrefUtils {
 
     public static long lastTimeDownloaded (SharedPreferences mSharedPreferences) {
         return mSharedPreferences.getLong(SHARED_PREF_KEY_LAST_TIME_DOWNLOADED, -1);
+    }
+
+    public static void clearTrunched(SharedPreferences mSharedPreferences) {
+        SharedPreferences.Editor edit = mSharedPreferences.edit();
+        edit.putBoolean(SHARED_PREF_HAS_TRUNCH, false);
+        edit.commit();
     }
 
 

@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -46,7 +47,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //=========================================
     SharedPreferences mSharedPreferences;
     View mSplashScreenView;
-    TagsCompletionView mCompletionView;
+    TagsCompletionView mTagsCompletionView;
     TextView mTitleView;
     LinearLayout mMainContainer;
     HorizontialListView mRestContainer;
@@ -57,10 +58,6 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     ArrayAdapter<FoodTag> foodTagAdapter;
     ObjectMapper mMapper;
     InputMethodManager mInputManger;
-    PendingIntent mPendingCheckerIntent;
-    AlarmManager mTrunchCheckerAlarm;
-    AlarmManager mTrunchReminderAlarm;
-    PendingIntent mPendingReminderIntent;
     //=========================================
     //				Activity Lifecycle
     //=========================================
@@ -73,7 +70,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         // Init Fields
         mSharedPreferences = getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE);
         mSplashScreenView = findViewById(R.id.splash_screen);
-        mCompletionView = (TagsCompletionView) findViewById(R.id.searchView);
+        mTagsCompletionView = (TagsCompletionView) findViewById(R.id.searchView);
         mTitleView = (TextView) findViewById(R.id.titleView);
         mMainContainer = (LinearLayout) findViewById(R.id.mainContainer);
         mRestContainer = (HorizontialListView) findViewById(R.id.restContainer);
@@ -81,27 +78,31 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
         mInputManger = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
         // set daily reminder
-        AlarmsUtils.setReminderAlarm(this, mTrunchReminderAlarm, mPendingReminderIntent);
+        AlarmsUtils.setReminderAlarm(this);
 
-        // check the user is logged in
+        // check if the user isn't logged in
         if (!SharedPrefUtils.isLoggedIn(mSharedPreferences)) {
-            mSplashScreenView.setVisibility(View.VISIBLE);
-            // start linkdin activity
+            // start linkedinConnectActivity
 
         }
 
-        // check difference between current time and last time of download. Compare to MIN_TIME_BETWEEN_JSON_DOWNLOAD and act accordingly.
+        // check difference between current time and last time of download.
         long lastTimeDownloaded = SharedPrefUtils.lastTimeDownloaded(mSharedPreferences);
         long timeDifference = System.currentTimeMillis() - lastTimeDownloaded;
+        // Compare to MIN_TIME_BETWEEN_JSON_DOWNLOAD and act accordingly.
         if (timeDifference > TWENTY_FOUR_HOURS) {
             // show the splash screen
             mSplashScreenView.setVisibility(View.VISIBLE);
             // go get JSON from server
             downloadJSON();
+            // remove splash screen
+            mSplashScreenView.setVisibility(View.GONE);
         } else {
             // get JSON form local storage
             getJSONFromSharedPref();
         }
+
+
     }
 
 
@@ -109,11 +110,66 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     //				Private Methods
     //=========================================
 
+    private void linkedinConnect() {
+        Intent intent = new Intent(this, LinkedinConnectActivity.class);
+        startActivity(intent);
+    }
+
+    private void getJSONFromSharedPref() {
+        String jsonRest = SharedPrefUtils.getRests(mSharedPreferences);
+        String jsonTags = SharedPrefUtils.getFoodTags(mSharedPreferences);
+        parseAndInit(jsonRest, jsonTags);
+    }
+
+    private void downloadJSON() {
+        // create asyncTask which in on doInBackground makes an HTTPRequest to server to get JSON
+        // onPostExecute if all went well it calls parseAndInit method
+        new downloadJsonAsync().execute(urlGetTags, urlGetRest);
+    }
+
+    private void parseAndInit(String jsonRest, String jsonTags) {
+        // parse
+        parseJsonRest(jsonRest);
+        parseJsonTags(jsonTags);
+        //init
+        initRestContainer();
+        initTokenView();
+        adjustTokenView();
+    }
+
+    private void waitForTrunch(String restName, View view) {
+        AlarmsUtils.startCheckerAlarm(view, this, restName);
+    }
+
+    private void showGreatChoice(String restName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Great Choice!");
+        builder.setMessage("We'll let you know when you have a Trunch");
+        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    public static PendingIntent getSyncPendingIntent(Context context) {
+        Intent intent = new Intent(context, TrunchCheckerService.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent,
+                PendingIntent.FLAG_CANCEL_CURRENT);
+        return pendingIntent;
+    }
+
+    //=========================================
+    //				Json
+    //=========================================
+
+
     private void parseJsonRest(String jsonRest) {
         try {
             restTotal = mMapper.readValue(jsonRest,Restaurant[].class);
-            //make rest container;
-            initRestContainer();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -123,15 +179,15 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     private void parseJsonTags(String json) {
         try {
             foodTags = mMapper.readValue(json,FoodTag[].class);
-            // remove splash screen
-            mSplashScreenView.setVisibility(View.GONE);
-            // make tokenSearch view
-            initTokenView();
-            adjustTokenView();
+
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    //=========================================
+    //	     TokenView Related Methods
+    //=========================================
 
     private void initRestContainer() {
         restAdapterList = new ArrayList<Restaurant>();
@@ -167,6 +223,7 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
                 builder.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
+                        showGreatChoice(restName);
                         waitForTrunch(restName, view);
                     }
                 });
@@ -206,66 +263,33 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
     }
 
     private void adjustTokenView() {
-        mCompletionView.setAdapter(foodTagAdapter);
-        mCompletionView.setTokenListener(this);
-        mCompletionView.setTokenClickStyle(TokenCompleteTextView.TokenClickStyle.Delete);
-        mCompletionView.allowDuplicates(false);
-        mCompletionView.setOnClickListener(new View.OnClickListener() {
+        mTagsCompletionView.setAdapter(foodTagAdapter);
+        mTagsCompletionView.setTokenListener(this);
+        mTagsCompletionView.setTokenClickStyle(TokenCompleteTextView.TokenClickStyle.Delete);
+        mTagsCompletionView.allowDuplicates(false);
+        mTagsCompletionView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 mTitleView.setVisibility(View.GONE);
                 mMainContainer.setVisibility(View.VISIBLE);
-                if (mCompletionView.getObjects().size() > 2) {
-                    mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
+                if (mTagsCompletionView.getObjects().size() > 2) {
+                    mInputManger.hideSoftInputFromWindow(mTagsCompletionView.getWindowToken(), 0);
                 } else {
-                    mInputManger.showSoftInput(mCompletionView, 0);
-                    mCompletionView.setCursorVisible(true);
+                    mInputManger.showSoftInput(mTagsCompletionView, 0);
+                    mTagsCompletionView.setCursorVisible(true);
                 }
             }
         });
     }
 
-    private void getJSONFromSharedPref() {
-        String jsonRest = SharedPrefUtils.getRests(mSharedPreferences);
-        String jsonTags = SharedPrefUtils.getFoodTags(mSharedPreferences);
-        parseJsonRest(jsonRest);
-        parseJsonTags(jsonTags);
-
-    }
-
-    private void downloadJSON() {
-        // create asyncTask which in on doInBackground makes an HTTPRequest to server to get JSON
-        // onPostExecute if all went well it calls parseJSON method
-        new downloadJsonAsync().execute(urlGetTags, urlGetRest);
-    }
-
-    // if something went wrong
-    private void retryDownloadJSON() {
-        // if we fail to get JSON display an error screen and a retry button.
-        // The retry button will repeat the downloadJSONasync when pressed.
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Network Unavailable!");
-        builder.setMessage("Sorry there was an error getting data from the Internet.");
-        builder.setPositiveButton("Retry", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-                downloadJSON();
-            }
-        });
-        AlertDialog dialog = builder.create();
-        dialog.show();
-    }
-
-
     @Override
     public void onTokenAdded(Object token) {
         if (((FoodTag) token).isRest()) {
-            TokenViewUtils.restTokenAdded(token, mCompletionView, mInputManger);
+            TokenViewUtils.restTokenAdded(token, mTagsCompletionView, mInputManger);
         } else {
-            TokenViewUtils.foodTokenAdded(token, mCompletionView, mInputManger);
+            TokenViewUtils.foodTokenAdded(token, mTagsCompletionView, mInputManger);
         }
-        List<Object> tokens = mCompletionView.getObjects();
+        List<Object> tokens = mTagsCompletionView.getObjects();
         TokenViewUtils.refreshRest(tokens, restTotal,
                 restAdapterList, restAdapter);
     }
@@ -273,53 +297,19 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
 
     @Override
     public void onTokenRemoved(Object token) {
-        List<Object> tokens = mCompletionView.getObjects();
+        List<Object> tokens = mTagsCompletionView.getObjects();
         if (tokens.size() == 0) {
             mMainContainer.setVisibility(View.GONE);
             mTitleView.setVisibility(View.VISIBLE);
-            mInputManger.hideSoftInputFromWindow(mCompletionView.getWindowToken(), 0);
+            mInputManger.hideSoftInputFromWindow(mTagsCompletionView.getWindowToken(), 0);
         }
         TokenViewUtils.refreshRest(tokens, restTotal,
                 restAdapterList, restAdapter);
     }
 
-
-    private void waitForTrunch(String restName, View view) {
-        Intent alarmIntent = new Intent(this, TrunchCheckerService.class);
-        alarmIntent.putExtra("restName", restName);
-        showGreatChoice(restName);
-        mPendingCheckerIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, PendingIntent.FLAG_CANCEL_CURRENT);
-        AlarmsUtils.startCheckerAlarm(view, this, mTrunchCheckerAlarm , mPendingCheckerIntent,
-                mSharedPreferences);
-    }
-
-    private void showGreatChoice(String restName) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Great Choice!");
-        builder.setMessage("We'll let you know when you have a Trunch");
-        builder.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
-        AlertDialog dialog = builder.create();
-        dialog.show();
-    }
-
-    public static PendingIntent getSyncPendingIntent(Context context) {
-        Intent intent = new Intent(context, TrunchCheckerService.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
-        return pendingIntent;
-    }
-
     //=========================================
-    //				Private Classes
+    //		JsonDownload AsyncTask Class
     //=========================================
-    private void linkedinConnect() {
-        Intent intent = new Intent(this, LinkedinConnectActivity.class);
-        startActivity(intent);
-    }
 
     private class downloadJsonAsync extends AsyncTask<String, Void, String[]> {
         @Override
@@ -338,12 +328,29 @@ public class MainActivity extends Activity implements TokenCompleteTextView.Toke
                 // save json to sharePrefs
                 SharedPrefUtils.saveRestData(mSharedPreferences, jsonTags, jsonRest);
                 // parse json
-                parseJsonRest(jsonRest);
-                parseJsonTags(jsonTags);
+                parseAndInit(jsonRest,jsonTags);
             } else {
                 retryDownloadJSON(); // somthing went wrong on server so we will try again
             }
         }
+    }
+
+    // if something went wrong
+    private void retryDownloadJSON() {
+        // if we fail to get JSON display an error screen and a retry button.
+        // The retry button will repeat the downloadJSONasync when pressed.
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Network Unavailable!");
+        builder.setMessage("Sorry there was an error getting data from the Internet.");
+        builder.setPositiveButton("Retry", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+                downloadJSON();
+            }
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
 

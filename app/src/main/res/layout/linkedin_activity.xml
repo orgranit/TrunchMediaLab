@@ -6,19 +6,13 @@
     android:weightSum="1"
     android:background="#a848474b"  >
 
-    <View
-        android:id="@+id/splash_screen"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        android:background="#ffffbe01" />
 
     <TextView
         android:id="@+id/titleView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:visibility="visible"
-        android:text="@string/main_question"
+        android:text="LinkedIn Activity"
         android:textColor="#ffffbe01"
         android:layout_gravity="center_horizontal"
         android:textSize="25sp"
@@ -26,13 +20,12 @@
         android:layout_marginTop="150dp"
         android:textStyle="bold|italic" />
 
-    <SearchView
-        android:id="@+id/tempView"
-        android:layout_width="match_parent"
+    <Button
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:clickable="true"
-        android:background="#ff89d5ff"
-        android:queryHint="@string/food_prompt">
-        </SearchView>
+        android:text="Press me to return"
+        android:id="@+id/linkedinButton"
+        android:layout_gravity="center_horizontal" />
+
 
 </LinearLayout>

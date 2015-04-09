@@ -1,7 +1,6 @@
 package com.example.trunch;
 
 import android.content.SharedPreferences;
-import android.util.Log;
 
 /**
  * Created by or on 4/6/2015.
@@ -49,6 +48,11 @@ public class SharedPrefUtils {
     }
 
 
+    public static void saveUserID(SharedPreferences mSharedPreferences, long userID) {
+        SharedPreferences.Editor edit = mSharedPreferences.edit();
+        edit.putLong(SHARED_PREF_USER_ID, userID);
+        edit.commit();
+    }
 
     public static boolean isLoggedIn (SharedPreferences mSharedPreferences) {
         return mSharedPreferences.getLong(SHARED_PREF_USER_ID, -1) >= 0;

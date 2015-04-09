@@ -6,4 +6,7 @@
     <string name="mGlass">\uD83D\uDD0D</string>
     <string name="pick_resturent">Choose a restaurant</string>
     <string name="wait_for_trunch">Waiting for your TRUNCH...</string>
+    <string name="title_activity_second">SecondActivity</string>
+
+    <string name="hello_world">Hello world!</string>
 </resources>

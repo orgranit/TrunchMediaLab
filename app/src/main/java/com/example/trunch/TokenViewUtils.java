@@ -11,9 +11,8 @@ public class TokenViewUtils {
     public static void refreshRest(List<Object> tokens, Restaurant[] restTotal,
                             ArrayList<Restaurant> restAdapterList ,
                             ArrayAdapter<Restaurant> restAdapter) {
-        for (int i =0; i < restTotal.length; i++){
-            Restaurant rest = restTotal[i];
-            if (containTags(rest,tokens)){
+        for (Restaurant rest : restTotal) {
+            if (containTags(rest, tokens)) {
                 if (!restAdapterList.contains(rest)) {
                     restAdapterList.add(rest);
                 }
@@ -32,7 +31,8 @@ public class TokenViewUtils {
             return false;
         }
         int matches = 0;
-        String[] tags = rest.getTags();
+        List<String> tags = rest.getTags();
+        tags.add(rest.getName());
         for (Object token : tokens) {
             FoodTag foodTag = (FoodTag) token;
             for(String tag : tags) {
@@ -69,9 +69,6 @@ public class TokenViewUtils {
         }
     }
 
-    public static void adjustTokenView(TagsCompletionView mTagsCompletionView) {
-
-    }
 
 }
 

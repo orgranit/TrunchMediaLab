@@ -42,7 +42,7 @@ public class TrunchCheckerService extends BroadcastReceiver {
             new AsynkTrunchChecker().execute("http://www.mocky.io/v2/551f2c7ede0201b30f690e3c");
         } else {
             mTrunchers = SharedPrefUtils.getTrunchers(mSharedPreferences);
-            cancelAlarm(MainActivity.getSyncPendingIntent(context));
+            cancelAlarm(SecondActivity.getSyncPendingIntent(context));
             showNotification(context);
 
         }
@@ -89,8 +89,7 @@ public class TrunchCheckerService extends BroadcastReceiver {
     private class AsynkTrunchChecker extends AsyncTask<String, Void, String> {
         @Override
         protected String doInBackground(String... params) {
-            String response = RequestManger.requestGet(params[0]);
-            return response;
+            return RequestManger.requestGet(params[0]);
         }
 
         @Override
